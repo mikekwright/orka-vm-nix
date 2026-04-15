@@ -10,6 +10,9 @@
 
 let
   system = pkgs.stdenv.hostPlatform.system;
+  opencodeHost = "0.0.0.0";
+  opencodePort = 9081;
+  opencodeUrl = "http://127.0.0.1:${toString opencodePort}";
   opencodePkgs = import inputs.nixpkgs-opencode {
     inherit system;
     config.allowUnfree = true;
@@ -80,7 +83,6 @@ in
         ninja
         nixd
         nixfmt
-        nushell
         podman
         rar
         silver-searcher
@@ -95,9 +97,36 @@ in
 
   programs.home-manager.enable = true;
 
+  home.sessionVariables = {
+    OPENCODE_SERVE_URL = opencodeUrl;
+  };
+
   programs.direnv = {
     enable = true;
     nix-direnv.enable = true;
+  };
+
+  launchd.agents.opencode = {
+    enable = true;
+    config = {
+      KeepAlive = true;
+      ProgramArguments = [
+        "${opencodePkgs.opencode}/bin/opencode"
+        "serve"
+        "--hostname"
+        opencodeHost
+        "--port"
+        (toString opencodePort)
+      ];
+      RunAtLoad = true;
+      StandardErrorPath = "/Users/${username}/Library/Logs/opencode.log";
+      StandardOutPath = "/Users/${username}/Library/Logs/opencode.log";
+      WorkingDirectory = "/Users/${username}";
+      EnvironmentVariables = {
+        HOME = "/Users/${username}";
+        OPENCODE_DISABLE_LSP_DOWNLOAD = "true";
+      };
+    };
   };
 
   programs.git = {

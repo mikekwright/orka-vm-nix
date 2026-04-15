@@ -15,6 +15,7 @@ This repo is intentionally scoped to a single machine instead of a shared multi-
 - `nix-homebrew` integration with pinned Homebrew taps
 - Safe OpenCode installation and local configuration
 - Local machine identity loaded from an ignored `local.nix` file
+- OpenCode launch agent that starts automatically at user login
 
 ### What is intentionally not included
 
@@ -60,3 +61,13 @@ nix --enable-experimental-features nix-command --enable-experimental-features fl
 
 - OpenCode is configured with safe defaults only. Add any private providers or MCP server credentials separately outside this repo.
 - Personal values such as macOS username and git user name belong in `local.nix`, which is gitignored.
+- OpenCode runs as a per-user background service on login, listening on `0.0.0.0:9081`.
+- Local clients in the VM can still use `http://127.0.0.1:9081`.
+- Logs are written to `~/Library/Logs/opencode.log`.
+
+## Security
+
+- The OpenCode service is intentionally bound to `0.0.0.0:9081` for this Orka VM setup.
+- This is only appropriate if the VM network is restricted so that only the host machine can reach the guest.
+- If the VM is ever moved to a normal bridged, shared, or otherwise reachable network, change the OpenCode bind address in `home.nix` from `0.0.0.0` back to `127.0.0.1` before using it.
+- OpenCode `serve` does not provide built-in username/password protection, so network exposure should be treated as sensitive.
