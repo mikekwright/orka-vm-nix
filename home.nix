@@ -91,7 +91,7 @@ in
       ]
       ++ [
         opencodeWrapped
-        opencodePkgs.opencode
+        # opencodePkgs.opencode
       ];
   };
 
