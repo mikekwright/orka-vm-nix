@@ -1,19 +1,23 @@
 HOSTNAME := admins-Virtual-Machine
 FLAKE := .#$(HOSTNAME)
+NIX := nix --enable-experimental-features nix-command --enable-experimental-features flakes
 
-.PHONY: build switch dry-run check fmt
+.PHONY: install-nix build switch dry-run check fmt
+
+install-nix:
+	sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install)
 
 build:
-	nix build .#darwinConfigurations.$(HOSTNAME).config.system.build.toplevel
+	$(NIX) build .#darwinConfigurations.$(HOSTNAME).config.system.build.toplevel
 
 switch:
-	darwin-rebuild switch --flake $(FLAKE)
+	$(NIX) run nix-darwin -- switch --flake $(FLAKE)
 
 dry-run:
-	nix build .#darwinConfigurations.$(HOSTNAME).config.system.build.toplevel --dry-run
+	$(NIX) build .#darwinConfigurations.$(HOSTNAME).config.system.build.toplevel --dry-run
 
 check:
-	nix flake check
+	$(NIX) flake check
 
 fmt:
-	nix fmt
+	$(NIX) fmt
