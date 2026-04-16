@@ -11,7 +11,7 @@ install-nix:
 	sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install)
 
 switch:
-	$(NIX) run nix-darwin -- switch --flake $(FLAKE)
+	sudo $(NIX) run nix-darwin -- switch --flake $(FLAKE)
 
 dry-run:
 	$(NIX) build .#darwinConfigurations.$(HOSTNAME).config.system.build.toplevel --dry-run
