@@ -21,12 +21,10 @@
       };
       WindowManager.EnableStandardClickToShowDesktop = false;
       dock = {
-        autohide = true;
-        autohide-delay = 0.0;
-        autohide-time-modifier = 0.0;
+        autohide = false;
         largesize = 96;
         magnification = true;
-        tilesize = 24;
+        tilesize = 48;
       };
     };
   };

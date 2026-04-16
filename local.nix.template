@@ -1,4 +1,5 @@
 {
   username = "your-macos-username";
   gitUserName = "Your Name";
+  hostname = "vm hostname";
 }

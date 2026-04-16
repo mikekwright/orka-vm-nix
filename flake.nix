@@ -2,31 +2,38 @@
   description = "Standalone nix-darwin flake for admins-Virtual-Machine";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    # Pinned versions for nixpkgs-unstable 2026-04-16
+    nixpkgs.url = "github:nixos/nixpkgs/566acc07c54dc807f91625bb286cb9b321b5f42a";
 
     darwin = {
-      url = "github:lnl7/nix-darwin";
+      # Pinned version for nix-darwin 2026-04-16
+      url = "github:lnl7/nix-darwin/06648f4902343228ce2de79f291dd5a58ee12146";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     home-manager = {
-      url = "github:nix-community/home-manager";
+      # Pinned version for home-manager 2026-04-16
+      url = "github:nix-community/home-manager/3c7524c68348ef79ce48308e0978611a050089b2";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    nix-homebrew.url = "github:zhaofengli/nix-homebrew";
+    # Pinned version for nix-homebrew 2026-04-16
+    nix-homebrew.url = "github:zhaofengli/nix-homebrew/a7760a3a83f7609f742861afb5732210fdc437ed";
 
     homebrew-core = {
-      url = "github:homebrew/homebrew-core";
+      # Pinned version for homebrew-core 2026-04-16
+      url = "github:homebrew/homebrew-core/71192e178db3ac7bd970eb9a4b4b2dc0873ebcf6";
       flake = false;
     };
 
     homebrew-cask = {
-      url = "github:homebrew/homebrew-cask";
+      # Pinned version for homebrew-cask 2026-04-16
+      url = "github:homebrew/homebrew-cask/3738e26baf19037cba0be13fb0445bd9fdcff2d2";
       flake = false;
     };
 
-    nixpkgs-opencode.url = "github:nixos/nixpkgs/66134a4537c8405f1cf22c8e5656b3fe4ece65ca";
+    # Pinner version for opencode version 1.4.6 (2026-04-15)
+    nixpkgs-opencode.url = "github:nixos/nixpkgs/44630770ce2af9e12f8e1cfeb8f235a8cdea7452";
   };
 
   outputs =
@@ -40,15 +47,17 @@
     }:
     let
       system = "aarch64-darwin";
-      hostname = "admins-Virtual-Machine";
+
       localConfigPath = ./local.nix;
       localConfig =
         if builtins.pathExists localConfigPath then
           import localConfigPath
         else
           throw "Copy local.nix.template to local.nix and set username and gitUserName.";
+
       username = localConfig.username;
       gitUserName = localConfig.gitUserName;
+      hostname = localConfig.hostname;
     in
     {
       darwinConfigurations.${hostname} = darwin.lib.darwinSystem {
