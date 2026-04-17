@@ -1,4 +1,4 @@
-HOSTNAME := admins-Virtual-Machine
+HOSTNAME := $(shell grep -Eo 'hostname = "[^"]+";' local.nix | grep -Eo '"[^"]+"' | grep -Eo '[^"]+')
 FLAKE := .#$(HOSTNAME)
 NIX := nix --extra-experimental-features nix-command --extra-experimental-features flakes
 
