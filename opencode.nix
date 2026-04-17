@@ -288,21 +288,17 @@ in
   };
 
   home.file = {
-    ".config/opencode" = {
-      "AGENT.md" = ''
-        Keep changes minimal, preserve existing style, and do not introduce secrets.
-        Run evaluation or build commands before declaring system changes complete.
-      '';
+    ".config/opencode/AGENT.md".text = ''
+      Keep changes minimal, preserve existing style, and do not introduce secrets.
+      Run evaluation or build commands before declaring system changes complete.
+    '';
 
-      "opencode.json" = builtins.toJSON opencodeConfig;
-      "tui.json" = builtins.toJSON opencodeTuiConfig;
+    ".config/opencode/opencode.json".text = builtins.toJSON opencodeConfig;
+    ".config/opencode/tui.json".text = builtins.toJSON opencodeTuiConfig;
 
-      agents = {
-        "dark-factory-manager.md".text = darkFactoryManager;
-        "dark-factory-spec-builder.md".text = darkFactorySpecBuilder;
-        "dark-factory-spec-implementor.md".text = darkFactorySpecImplementor;
-        "dark-factory-scenario-validator.md".text = darkFactoryScenarioValidator;
-      };
-    };
+    ".config/opencode/agents/dark-factory-manager.md".text = darkFactoryManager;
+    ".config/opencode/agents/dark-factory-spec-builder.md".text = darkFactorySpecBuilder;
+    ".config/opencode/agents/dark-factory-spec-implementor.md".text = darkFactorySpecImplementor;
+    ".config/opencode/agents/dark-factory-scenario-validator.md".text = darkFactoryScenarioValidator;
   };
 }
