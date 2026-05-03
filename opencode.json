@@ -1,4 +1,30 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "default"
+  "default_agent": "orka-vm-nix-manager",
+  "command": {
+    "check": {
+      "description": "Run flake checks and dry-run evaluation",
+      "agent": "orka-vm-nix-devops",
+      "subtask": true,
+      "template": "Run `make check` and `make dry-run`. If `local.nix` or other host-specific prerequisites are missing or invalid, stop and explain what must be fixed before validation can pass."
+    },
+    "build": {
+      "description": "Build the configured nix-darwin system",
+      "agent": "orka-vm-nix-devops",
+      "subtask": true,
+      "template": "Run `make build` for the current host configuration and summarize any evaluation or build failures, including the file most likely responsible."
+    },
+    "fmt": {
+      "description": "Format the repo with the configured formatter",
+      "agent": "orka-vm-nix-devops",
+      "subtask": true,
+      "template": "Run `make fmt`, report whether files changed, and mention whether follow-up validation such as `make check` or `make build` is recommended."
+    },
+    "switch": {
+      "description": "Apply the nix-darwin configuration to this machine",
+      "agent": "orka-vm-nix-devops",
+      "subtask": true,
+      "template": "Only for explicit apply requests, verify the host-specific configuration is ready and run `make switch`, then summarize the result and any manual follow-up steps."
+    }
+  }
 }
