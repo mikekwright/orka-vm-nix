@@ -20,6 +20,7 @@
       awscli2
       cheat
       cmake
+      codex
       docker
       docker-compose
       fastfetch

@@ -15,7 +15,7 @@ This repo is intentionally scoped to a single machine instead of a shared multi-
 - `nix-homebrew` integration with pinned Homebrew taps
 - Safe OpenCode installation and local configuration
 - `openvscode-server` installed from the main Nix package set and started automatically on login
-- `codex-app` installed through Homebrew and `codex-web-ui` installed from a local Nix package
+- `codex` CLI installed through Nix for terminal use, plus `codex-app` through Homebrew for `codex-web-ui`
 - A user-scoped Caddy reverse proxy in front of OpenCode, `openvscode-server`, and `codex-web-ui`
 - Shared HTTP basic auth at the Caddy layer for all exposed web apps
 - An authenticated landing page on `:8080` with links to the exposed services
@@ -72,8 +72,9 @@ nix --enable-experimental-features nix-command --enable-experimental-features fl
 
 - OpenCode is configured with safe defaults only. Add any private providers or MCP server credentials separately outside this repo.
 - Personal values such as macOS username and git user name belong in `local.nix`, which is gitignored.
+- The `codex` CLI is installed from Nix for direct terminal use and should be available on your shell `PATH` after switching.
 - OpenCode now listens on `127.0.0.1:9081` and is intended to be reached through the local Caddy reverse proxy.
-- `codex-web-ui` is started locally and expects `Codex.app` to exist at `/Applications/Codex.app`, which is provided by the `codex-app` Homebrew cask.
+- `codex-web-ui` is started locally and still expects `Codex.app` to exist at `/Applications/Codex.app`, which is currently provided by the `codex-app` Homebrew cask; it does not replace that dependency with the Nix CLI.
 - The web access stack uses these public ports on the VM:
   - `8080` - Caddy landing page
   - `8081` - OpenCode
@@ -257,6 +258,7 @@ username:$2a$14$...
 
 `codex-web-ui` expects:
 
+- `codex` available from the managed Nix environment
 - `Codex.app` installed at `/Applications/Codex.app`
 - Node available from the managed environment
 
