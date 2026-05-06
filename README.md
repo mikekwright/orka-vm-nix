@@ -14,9 +14,14 @@ This repo is intentionally scoped to a single machine instead of a shared multi-
 - `home-manager` configuration for `mikewright`
 - `nix-homebrew` integration with pinned Homebrew taps
 - Safe OpenCode installation and local configuration
+- `code-server` installed from a pinned Nix package and started automatically on login
+- `codex-app` installed through Homebrew and `codex-web-ui` installed from a local Nix package
+- A user-scoped Caddy reverse proxy in front of OpenCode, `code-server`, and `codex-web-ui`
+- Shared HTTP basic auth at the Caddy layer for all exposed web apps
+- An authenticated landing page on `:8080` with links to the exposed services
 - Local OpenCode MCP server packaging, starting with `computer-control`
 - Local machine identity loaded from an ignored `local.nix` file
-- OpenCode launch agent that starts automatically at user login
+- Launch agents that start OpenCode, `code-server`, `codex-web-ui`, and Caddy automatically at user login
 
 ### What is intentionally not included
 
@@ -38,6 +43,11 @@ First copy the template and fill in your local values:
 ```bash
 cp local.nix.template local.nix
 ```
+
+Set `serviceHostName` to the hostname or IP you want used in the generated helper URLs.
+
+- Use an IP if you do not want DNS at all.
+- Use a hostname if you want nicer URLs.
 
 
 You will then need to add it to the git repo (don't commit) just so nix will correctly include the file in the build process
@@ -62,14 +72,99 @@ nix --enable-experimental-features nix-command --enable-experimental-features fl
 
 - OpenCode is configured with safe defaults only. Add any private providers or MCP server credentials separately outside this repo.
 - Personal values such as macOS username and git user name belong in `local.nix`, which is gitignored.
-- OpenCode runs as a per-user background service on login, listening on `0.0.0.0:9081`.
-- Local clients in the VM can still use `http://127.0.0.1:9081`.
-- Logs are written to `~/Library/Logs/opencode.log`.
+- OpenCode now listens on `127.0.0.1:9081` and is intended to be reached through the local Caddy reverse proxy.
+- `codex-web-ui` is started locally and expects `Codex.app` to exist at `/Applications/Codex.app`, which is provided by the `codex-app` Homebrew cask.
+- The web access stack uses these public ports on the VM:
+  - `8080` - Caddy landing page
+  - `8081` - OpenCode
+  - `8082` - `code-server`
+  - `8083` - `codex-web-ui`
+- Logs are written to `~/Library/Logs/{opencode,code-server,codex-web-ui,caddy}.log`.
+- The same Caddy HTTP basic auth credentials are used for the landing page and all three proxied app ports.
 
-## OpenCode Password
+## Caddy Basic Auth Setup
 
-- If `~/.opencode-password` exists, the launch agent starts OpenCode with HTTP basic auth enabled.
-- If `~/.opencode-password` does not exist, OpenCode starts without a password.
+Create `~/.caddy-basicauth` with a single `username:bcrypt-hash` entry before expecting the proxied web apps to work.
+
+```bash
+nix shell nixpkgs#caddy -c caddy hash-password --plaintext 'your-password'
+```
+
+Example `~/.caddy-basicauth` contents:
+
+```text
+admin:$2a$14$replace-with-your-bcrypt-hash
+```
+
+Create the file with restrictive permissions:
+
+```bash
+printf '%s\n' 'admin:$2a$14$replace-with-your-bcrypt-hash' > ~/.caddy-basicauth
+chmod 600 ~/.caddy-basicauth
+```
+
+Rules for `~/.caddy-basicauth`:
+
+- exactly one line
+- exactly one `:` separator
+- format: `username:bcrypt-hash`
+- the hash should be the output of `caddy hash-password`
+
+If this file is missing or malformed, the Caddy launch agent will fail to start until it is fixed.
+
+## Service URLs
+
+Once the system is switched and the Caddy auth file exists, use:
+
+- landing page: `http://<serviceHostName>:8080`
+- OpenCode: `http://<serviceHostName>:8081`
+- code-server: `http://<serviceHostName>:8082`
+- codex-web-ui: `http://<serviceHostName>:8083`
+
+If `serviceHostName` is set to an IP, replace `<serviceHostName>` with that IP directly.
+
+## IP Address Support
+
+- Caddy basic auth works fine over a bare IP address, so DNS is no longer required for the authentication layer.
+- If you prefer a hostname, `serviceHostName` can still be a local DNS name or `/etc/hosts` entry.
+
+Example `local.nix` value when using an IP directly:
+
+```nix
+serviceHostName = "10.0.0.25";
+```
+
+Example `local.nix` value when using a hostname:
+
+```nix
+serviceHostName = "vm-hostname.local";
+```
+
+## code-server Note
+
+- `code-server` itself is proxied correctly, but browser features that require a secure context can still be limited when you use plain HTTP from another machine.
+- If you need full webview behavior, plan on adding HTTPS with Caddy later.
+
+## Services Started Automatically
+
+On login, Home Manager starts user services for:
+
+- OpenCode
+- code-server
+- codex-web-ui
+- Caddy
+
+If one of the prerequisites is missing, the affected service can fail and retry through launchd. The two most common causes are:
+
+- missing `~/.caddy-basicauth`
+- `Codex.app` not present at `/Applications/Codex.app`
+
+## Direct OpenCode Password
+
+- When using the Caddy stack, OpenCode's own built-in password is disabled by default so that the proxy remains the only external login layer.
+- Only enable direct OpenCode auth if you explicitly set `enableDirectOpencodeAuth = true;` in `local.nix`.
+- If direct auth is enabled and `~/.opencode-password` exists, the launch agent starts OpenCode with HTTP basic auth enabled.
+- If direct auth is enabled and `~/.opencode-password` does not exist, OpenCode starts without a password.
 - The username defaults to `opencode`, matching the current OpenCode docs for `OPENCODE_SERVER_USERNAME`.
 - `age` is installed as part of this setup and can be used to keep `~/.opencode-password` encrypted at rest.
 
@@ -95,10 +190,83 @@ chmod 600 ~/.opencode-password
 
 The startup script detects plaintext automatically. If `~/.opencode-password` contains an age header, it decrypts it with `~/.config/age/keys.txt` before starting OpenCode.
 
+## Troubleshooting
+
+### A service does not start
+
+Check whether the user launch agents are loaded:
+
+```bash
+launchctl list | grep -E 'caddy|code-server|codex-web-ui|opencode'
+```
+
+Check logs:
+
+```bash
+tail -f ~/Library/Logs/caddy.log
+tail -f ~/Library/Logs/code-server.log
+tail -f ~/Library/Logs/codex-web-ui.log
+tail -f ~/Library/Logs/opencode.log
+```
+
+### Caddy is not starting
+
+Common causes:
+
+- `~/.caddy-basicauth` is missing
+- `~/.caddy-basicauth` is malformed
+- one of the backend services is not listening yet
+- one of the public ports is already in use
+
+Verify the auth file format:
+
+```text
+username:$2a$14$...
+```
+
+### codex-web-ui is not starting
+
+`codex-web-ui` expects:
+
+- `Codex.app` installed at `/Applications/Codex.app`
+- Node available from the managed environment
+
+If the app is missing, make sure the `codex-app` cask installed successfully.
+
+### `local.nix` changes are ignored during build
+
+This repo expects `local.nix` to be present in the git index during evaluation.
+
+```bash
+git add -f local.nix
+```
+
+Do not commit it.
+
+### The browser can reach the page but code-server features are broken
+
+If you are using plain HTTP from another machine, browser secure-context restrictions can affect code-server features such as webviews.
+
+The fix is to add HTTPS later through Caddy.
+
+### A port is already in use
+
+This setup expects:
+
+- `8080` for the landing page
+- `8081` for OpenCode
+- `8082` for code-server
+- `8083` for codex-web-ui
+- `9081` for the internal OpenCode listener
+- `9082` for the internal code-server listener
+- `5999` for the internal codex-web-ui listener
+
+If one of those is already occupied, the related service will fail to start.
+
 ## Security
 
-- The OpenCode service is intentionally bound to `0.0.0.0:9081` for this Orka VM setup.
-- This is only appropriate if the VM network is restricted so that only the host machine can reach the guest.
-- If the VM is ever moved to a normal bridged, shared, or otherwise reachable network, change the OpenCode bind address in `home.nix` from `0.0.0.0` back to `127.0.0.1` before using it.
-- OpenCode now starts through `opencode web`, and if `~/.opencode-password` exists the service enables HTTP basic auth using that password.
+- OpenCode is now loopback-only and is exposed externally through the Caddy reverse proxy.
+- Caddy basic auth is the intended external authentication layer for the proxied apps.
+- Bare-IP access is supported by the current Caddy auth setup.
+- OpenCode still starts through `opencode web`, and direct OpenCode HTTP basic auth is now opt-in through `enableDirectOpencodeAuth = true;` in `local.nix`.
 - `computer-control` is enabled as a local MCP server and installed through Nix as part of the same Home Manager configuration.

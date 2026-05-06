@@ -2,4 +2,6 @@
   username = "your-macos-username";
   gitUserName = "Your Name";
   hostname = "vm hostname";
+  serviceHostName = "vm-hostname.local-or-ip";
+  enableDirectOpencodeAuth = false;
 }

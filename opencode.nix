@@ -2,13 +2,16 @@
   pkgs,
   inputs,
   username,
+  localConfig ? { },
   ...
 }:
 
 let
   system = pkgs.stdenv.hostPlatform.system;
   homeDirectory = "/Users/${username}";
-  opencodeHost = "0.0.0.0";
+  enableDirectOpencodeAuth =
+    localConfig ? enableDirectOpencodeAuth && localConfig.enableDirectOpencodeAuth;
+  opencodeHost = "127.0.0.1";
   opencodePort = 9081;
   opencodeUrl = "http://127.0.0.1:${toString opencodePort}";
   opencodePkgs = import inputs.nixpkgs-opencode {
@@ -70,42 +73,49 @@ let
   opencodeWebStart = pkgs.writeShellScript "opencode-web-start" ''
     set -euo pipefail
 
-    password_file="$HOME/.opencode-password"
-    age_identity_file="$HOME/.config/age/keys.txt"
-
-    read_password() {
-      local file="$1"
-      local first_line=""
-
-      IFS= read -r first_line < "$file" || true
-
-      case "$first_line" in
-        "-----BEGIN AGE ENCRYPTED FILE-----"|age-encryption.org/*)
-          if [[ ! -f "$age_identity_file" ]]; then
-            printf 'Encrypted %s found, but %s is missing.\n' "$password_file" "$age_identity_file" >&2
-            exit 1
-          fi
-
-          ${pkgs.age}/bin/age --decrypt -i "$age_identity_file" "$file" | ${pkgs.coreutils}/bin/tr -d '\r\n'
-          ;;
-        *)
-          ${pkgs.coreutils}/bin/tr -d '\r\n' < "$file"
-          ;;
-      esac
-    }
-
     export OPENCODE_DISABLE_LSP_DOWNLOAD=true
     unset OPENCODE_SERVER_USERNAME
     unset OPENCODE_SERVER_PASSWORD
 
-    if [[ -f "$password_file" ]]; then
-      password="$(read_password "$password_file")"
+    ${
+      if enableDirectOpencodeAuth then
+        ''
+          password_file="$HOME/.opencode-password"
+          age_identity_file="$HOME/.config/age/keys.txt"
 
-      if [[ -n "$password" ]]; then
-        export OPENCODE_SERVER_USERNAME=opencode
-        export OPENCODE_SERVER_PASSWORD="$password"
-      fi
-    fi
+          read_password() {
+            local file="$1"
+            local first_line=""
+
+            IFS= read -r first_line < "$file" || true
+
+            case "$first_line" in
+              "-----BEGIN AGE ENCRYPTED FILE-----"|age-encryption.org/*)
+                if [[ ! -f "$age_identity_file" ]]; then
+                  printf 'Encrypted %s found, but %s is missing.\n' "$password_file" "$age_identity_file" >&2
+                  exit 1
+                fi
+
+                ${pkgs.age}/bin/age --decrypt -i "$age_identity_file" "$file" | ${pkgs.coreutils}/bin/tr -d '\r\n'
+                ;;
+              *)
+                ${pkgs.coreutils}/bin/tr -d '\r\n' < "$file"
+                ;;
+            esac
+          }
+
+          if [[ -f "$password_file" ]]; then
+            password="$(read_password "$password_file")"
+
+            if [[ -n "$password" ]]; then
+              export OPENCODE_SERVER_USERNAME=opencode
+              export OPENCODE_SERVER_PASSWORD="$password"
+            fi
+          fi
+        ''
+      else
+        ""
+    }
 
     exec ${opencodePkgs.opencode}/bin/opencode web --hostname ${opencodeHost} --port ${toString opencodePort}
   '';

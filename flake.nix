@@ -34,6 +34,9 @@
 
     # Pinner version for opencode version 1.4.6 (2026-04-15)
     nixpkgs-opencode.url = "github:nixos/nixpkgs/44630770ce2af9e12f8e1cfeb8f235a8cdea7452";
+
+    # Pinned version for code-server matching the dotfiles reference
+    nixpkgs-code-server.url = "github:nixos/nixpkgs/201ccf894a7665098b49d031503ec7d1a79251ba";
   };
 
   outputs =
@@ -65,6 +68,7 @@
         specialArgs = {
           inherit
             inputs
+            localConfig
             hostname
             username
             gitUserName
@@ -96,6 +100,7 @@
                 extraSpecialArgs = {
                   inherit
                     inputs
+                    localConfig
                     hostname
                     username
                     gitUserName

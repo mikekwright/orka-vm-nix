@@ -83,6 +83,7 @@
     enable = true;
     onActivation.cleanup = "zap";
     casks = [
+      "codex-app"
       "docker-desktop"
     ];
   };

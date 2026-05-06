@@ -6,7 +6,10 @@
 }:
 
 {
-  imports = [ ./opencode.nix ];
+  imports = [
+    ./opencode.nix
+    ./web-stack.nix
+  ];
 
   home = {
     username = username;
