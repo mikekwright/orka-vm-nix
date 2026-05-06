@@ -1,7 +1,6 @@
 {
   lib,
   pkgs,
-  inputs,
   hostname,
   username,
   localConfig ? { },
@@ -9,7 +8,6 @@
 }:
 
 let
-  system = pkgs.stdenv.hostPlatform.system;
   homeDirectory = "/Users/${username}";
   normalizedHostname = lib.toLower (lib.replaceStrings [ " " "_" ] [ "-" "-" ] hostname);
   serviceHostName =
@@ -21,27 +19,22 @@ let
   portalPublicPort = 8080;
   opencodeUpstreamPort = 9081;
   opencodePublicPort = 8081;
-  codeServerPort = 9082;
-  codeServerPublicPort = 8082;
+  openVSCodeServerPort = 9082;
+  openVSCodeServerPublicPort = 8082;
   codexWebUiPort = 5999;
   codexWebUiPublicPort = 8083;
 
   portalPublicUrl = "http://${serviceHostName}:${toString portalPublicPort}";
   opencodePublicUrl = "http://${serviceHostName}:${toString opencodePublicPort}";
-  codeServerPublicUrl = "http://${serviceHostName}:${toString codeServerPublicPort}";
+  openVSCodeServerPublicUrl = "http://${serviceHostName}:${toString openVSCodeServerPublicPort}";
   codexWebUiPublicUrl = "http://${serviceHostName}:${toString codexWebUiPublicPort}";
 
-  codeServerPackage =
-    (import inputs.nixpkgs-code-server {
-      inherit system;
-      config.allowUnfree = true;
-    }).code-server;
+  openVSCodeServerPackage = pkgs.openvscode-server;
   codexWebUiPackage = pkgs.callPackage ./pkgs/codex-web-ui { };
 
-  codeServerRootDirectory = "${homeDirectory}/.local/share/code-server";
-  codeServerConfigFile = "${codeServerRootDirectory}/config.yaml";
-  codeServerUserDataDirectory = "${codeServerRootDirectory}/user-data";
-  codeServerExtensionsDirectory = "${codeServerRootDirectory}/extensions";
+  openVSCodeServerRootDirectory = "${homeDirectory}/.local/share/openvscode-server";
+  openVSCodeServerUserDataDirectory = "${openVSCodeServerRootDirectory}/user-data";
+  openVSCodeServerExtensionsDirectory = "${openVSCodeServerRootDirectory}/extensions";
 
   caddyAuthFile = "${homeDirectory}/.caddy-basicauth";
 
@@ -98,7 +91,7 @@ let
           <p>All services are fronted by one Caddy instance with shared HTTP basic auth.</p>
           <ul>
             <li><a href="${opencodePublicUrl}">OpenCode <code>${opencodePublicUrl}</code></a></li>
-            <li><a href="${codeServerPublicUrl}">code-server <code>${codeServerPublicUrl}</code></a></li>
+            <li><a href="${openVSCodeServerPublicUrl}">openvscode-server <code>${openVSCodeServerPublicUrl}</code></a></li>
             <li><a href="${codexWebUiPublicUrl}">codex-web-ui <code>${codexWebUiPublicUrl}</code></a></li>
           </ul>
         </main>
@@ -106,23 +99,18 @@ let
     </html>
   '';
 
-  codeServerStart = pkgs.writeShellScript "code-server-start" ''
+  openVSCodeServerStart = pkgs.writeShellScript "openvscode-server-start" ''
     set -euo pipefail
 
     umask 077
-    mkdir -p "${codeServerRootDirectory}" "${codeServerUserDataDirectory}" "${codeServerExtensionsDirectory}"
+    mkdir -p "${openVSCodeServerRootDirectory}" "${openVSCodeServerUserDataDirectory}" "${openVSCodeServerExtensionsDirectory}"
 
-    cat > "${codeServerConfigFile}" <<'EOF'
-    bind-addr: 127.0.0.1:${toString codeServerPort}
-    auth: none
-    cert: false
-    EOF
-
-    exec ${codeServerPackage}/bin/code-server \
-      --config "${codeServerConfigFile}" \
-      --user-data-dir "${codeServerUserDataDirectory}" \
-      --extensions-dir "${codeServerExtensionsDirectory}" \
-      --disable-telemetry \
+    exec ${openVSCodeServerPackage}/bin/openvscode-server \
+      --host 127.0.0.1 \
+      --port ${toString openVSCodeServerPort} \
+      --without-connection-token \
+      --user-data-dir "${openVSCodeServerUserDataDirectory}" \
+      --extensions-dir "${openVSCodeServerExtensionsDirectory}" \
       "${homeDirectory}"
   '';
 
@@ -177,8 +165,8 @@ let
       import authenticated_app 127.0.0.1:${toString opencodeUpstreamPort}
     }
 
-    :${toString codeServerPublicPort} {
-      import authenticated_app 127.0.0.1:${toString codeServerPort}
+    :${toString openVSCodeServerPublicPort} {
+      import authenticated_app 127.0.0.1:${toString openVSCodeServerPort}
     }
 
     :${toString codexWebUiPublicPort} {
@@ -235,7 +223,7 @@ let
     mkdir -p "$XDG_CONFIG_HOME/caddy" "$XDG_DATA_HOME/caddy"
 
     wait_for_port ${toString opencodeUpstreamPort}
-    wait_for_port ${toString codeServerPort}
+    wait_for_port ${toString openVSCodeServerPort}
     wait_for_port ${toString codexWebUiPort}
 
     exec ${pkgs.caddy}/bin/caddy run --config "${caddyConfig}" --adapter caddyfile
@@ -243,7 +231,7 @@ let
 in
 {
   home.packages = [
-    codeServerPackage
+    openVSCodeServerPackage
     codexWebUiPackage
     pkgs.caddy
     pkgs.nodejs
@@ -253,19 +241,20 @@ in
 
   home.sessionVariables = {
     ORKA_VM_CADDY_PORTAL_URL = portalPublicUrl;
-    ORKA_VM_CODE_SERVER_URL = codeServerPublicUrl;
+    ORKA_VM_OPENVSCODE_SERVER_URL = openVSCodeServerPublicUrl;
+    ORKA_VM_CODE_SERVER_URL = openVSCodeServerPublicUrl;
     ORKA_VM_CODEX_WEB_UI_URL = codexWebUiPublicUrl;
     ORKA_VM_OPENCODE_URL = opencodePublicUrl;
   };
 
-  launchd.agents.code-server = {
+  launchd.agents.openvscode-server = {
     enable = true;
     config = {
       KeepAlive = true;
-      ProgramArguments = [ "${codeServerStart}" ];
+      ProgramArguments = [ "${openVSCodeServerStart}" ];
       RunAtLoad = true;
-      StandardErrorPath = "${homeDirectory}/Library/Logs/code-server.log";
-      StandardOutPath = "${homeDirectory}/Library/Logs/code-server.log";
+      StandardErrorPath = "${homeDirectory}/Library/Logs/openvscode-server.log";
+      StandardOutPath = "${homeDirectory}/Library/Logs/openvscode-server.log";
       WorkingDirectory = homeDirectory;
       EnvironmentVariables = {
         HOME = homeDirectory;
@@ -315,7 +304,7 @@ in
     Service URLs:
       ${portalPublicUrl}
       ${opencodePublicUrl}
-      ${codeServerPublicUrl}
+      ${openVSCodeServerPublicUrl}
       ${codexWebUiPublicUrl}
   '';
 }

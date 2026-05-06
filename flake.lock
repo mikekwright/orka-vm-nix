@@ -128,22 +128,6 @@
         "type": "github"
       }
     },
-    "nixpkgs-code-server": {
-      "locked": {
-        "lastModified": 1774959817,
-        "narHash": "sha256-eessqPchNiHS1Uqmuc0ZLqksxRuCOy6BmnrsaaISl6s=",
-        "owner": "nixos",
-        "repo": "nixpkgs",
-        "rev": "201ccf894a7665098b49d031503ec7d1a79251ba",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nixos",
-        "repo": "nixpkgs",
-        "rev": "201ccf894a7665098b49d031503ec7d1a79251ba",
-        "type": "github"
-      }
-    },
     "nixpkgs-opencode": {
       "locked": {
         "lastModified": 1776241097,
@@ -168,7 +152,6 @@
         "homebrew-core": "homebrew-core",
         "nix-homebrew": "nix-homebrew",
         "nixpkgs": "nixpkgs",
-        "nixpkgs-code-server": "nixpkgs-code-server",
         "nixpkgs-opencode": "nixpkgs-opencode"
       }
     }

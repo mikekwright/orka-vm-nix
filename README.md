@@ -14,14 +14,14 @@ This repo is intentionally scoped to a single machine instead of a shared multi-
 - `home-manager` configuration for `mikewright`
 - `nix-homebrew` integration with pinned Homebrew taps
 - Safe OpenCode installation and local configuration
-- `code-server` installed from a pinned Nix package and started automatically on login
+- `openvscode-server` installed from the main Nix package set and started automatically on login
 - `codex-app` installed through Homebrew and `codex-web-ui` installed from a local Nix package
-- A user-scoped Caddy reverse proxy in front of OpenCode, `code-server`, and `codex-web-ui`
+- A user-scoped Caddy reverse proxy in front of OpenCode, `openvscode-server`, and `codex-web-ui`
 - Shared HTTP basic auth at the Caddy layer for all exposed web apps
 - An authenticated landing page on `:8080` with links to the exposed services
 - Local OpenCode MCP server packaging, starting with `computer-control`
 - Local machine identity loaded from an ignored `local.nix` file
-- Launch agents that start OpenCode, `code-server`, `codex-web-ui`, and Caddy automatically at user login
+- Launch agents that start OpenCode, `openvscode-server`, `codex-web-ui`, and Caddy automatically at user login
 
 ### What is intentionally not included
 
@@ -77,10 +77,11 @@ nix --enable-experimental-features nix-command --enable-experimental-features fl
 - The web access stack uses these public ports on the VM:
   - `8080` - Caddy landing page
   - `8081` - OpenCode
-  - `8082` - `code-server`
+  - `8082` - `openvscode-server`
   - `8083` - `codex-web-ui`
-- Logs are written to `~/Library/Logs/{opencode,code-server,codex-web-ui,caddy}.log`.
+- Logs are written to `~/Library/Logs/{opencode,openvscode-server,codex-web-ui,caddy}.log`.
 - The same Caddy HTTP basic auth credentials are used for the landing page and all three proxied app ports.
+- Shell sessions export `ORKA_VM_OPENVSCODE_SERVER_URL`, and `ORKA_VM_CODE_SERVER_URL` remains as a compatibility alias.
 
 ## Caddy Basic Auth Setup
 
@@ -118,7 +119,7 @@ Once the system is switched and the Caddy auth file exists, use:
 
 - landing page: `http://<serviceHostName>:8080`
 - OpenCode: `http://<serviceHostName>:8081`
-- code-server: `http://<serviceHostName>:8082`
+- openvscode-server: `http://<serviceHostName>:8082`
 - codex-web-ui: `http://<serviceHostName>:8083`
 
 If `serviceHostName` is set to an IP, replace `<serviceHostName>` with that IP directly.
@@ -140,17 +141,18 @@ Example `local.nix` value when using a hostname:
 serviceHostName = "vm-hostname.local";
 ```
 
-## code-server Note
+## OpenVSCode Server Note
 
-- `code-server` itself is proxied correctly, but browser features that require a secure context can still be limited when you use plain HTTP from another machine.
+- `openvscode-server` itself is proxied correctly, but browser features that require a secure context can still be limited when you use plain HTTP from another machine.
 - If you need full webview behavior, plan on adding HTTPS with Caddy later.
+- Existing `code-server` settings and extensions remain under `~/.local/share/code-server`; `openvscode-server` uses `~/.local/share/openvscode-server` and does not migrate that state automatically.
 
 ## Services Started Automatically
 
 On login, Home Manager starts user services for:
 
 - OpenCode
-- code-server
+- openvscode-server
 - codex-web-ui
 - Caddy
 
@@ -197,14 +199,14 @@ The startup script detects plaintext automatically. If `~/.opencode-password` co
 Check whether the user launch agents are loaded:
 
 ```bash
-launchctl list | grep -E 'caddy|code-server|codex-web-ui|opencode'
+launchctl list | grep -E 'caddy|openvscode-server|codex-web-ui|opencode'
 ```
 
 Check logs:
 
 ```bash
 tail -f ~/Library/Logs/caddy.log
-tail -f ~/Library/Logs/code-server.log
+tail -f ~/Library/Logs/openvscode-server.log
 tail -f ~/Library/Logs/codex-web-ui.log
 tail -f ~/Library/Logs/opencode.log
 ```
@@ -243,9 +245,9 @@ git add -f local.nix
 
 Do not commit it.
 
-### The browser can reach the page but code-server features are broken
+### The browser can reach the page but openvscode-server features are broken
 
-If you are using plain HTTP from another machine, browser secure-context restrictions can affect code-server features such as webviews.
+If you are using plain HTTP from another machine, browser secure-context restrictions can affect openvscode-server features such as webviews.
 
 The fix is to add HTTPS later through Caddy.
 
@@ -255,10 +257,10 @@ This setup expects:
 
 - `8080` for the landing page
 - `8081` for OpenCode
-- `8082` for code-server
+- `8082` for openvscode-server
 - `8083` for codex-web-ui
 - `9081` for the internal OpenCode listener
-- `9082` for the internal code-server listener
+- `9082` for the internal openvscode-server listener
 - `5999` for the internal codex-web-ui listener
 
 If one of those is already occupied, the related service will fail to start.
