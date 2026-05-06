@@ -161,6 +161,8 @@ If one of the prerequisites is missing, the affected service can fail and retry 
 - missing `~/.caddy-basicauth`
 - `Codex.app` not present at `/Applications/Codex.app`
 
+Caddy starts independently and no longer waits for the backend apps to be listening before it binds its public ports.
+
 ## Direct OpenCode Password
 
 - When using the Caddy stack, OpenCode's own built-in password is disabled by default so that the proxy remains the only external login layer.
@@ -217,8 +219,9 @@ Common causes:
 
 - `~/.caddy-basicauth` is missing
 - `~/.caddy-basicauth` is malformed
-- one of the backend services is not listening yet
 - one of the public ports is already in use
+
+If Caddy is running but one app is still starting, that route can return an upstream error until the backend is listening.
 
 Verify the auth file format:
 
@@ -261,7 +264,7 @@ This setup expects:
 - `8083` for codex-web-ui
 - `9081` for the internal OpenCode listener
 - `9082` for the internal openvscode-server listener
-- `5999` for the internal codex-web-ui listener
+- `9083` for the internal codex-web-ui listener
 
 If one of those is already occupied, the related service will fail to start.
 

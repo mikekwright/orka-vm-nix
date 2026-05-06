@@ -21,7 +21,7 @@ let
   opencodePublicPort = 8081;
   openVSCodeServerPort = 9082;
   openVSCodeServerPublicPort = 8082;
-  codexWebUiPort = 5999;
+  codexWebUiPort = 9083;
   codexWebUiPublicPort = 8083;
 
   portalPublicUrl = "http://${serviceHostName}:${toString portalPublicPort}";
@@ -177,22 +177,6 @@ let
   caddyStart = pkgs.writeShellScript "caddy-start" ''
     set -euo pipefail
 
-    wait_for_port() {
-      local port="$1"
-      local attempts=0
-
-      until /usr/bin/nc -z 127.0.0.1 "$port" >/dev/null 2>&1; do
-        attempts=$((attempts + 1))
-
-        if [[ "$attempts" -ge 60 ]]; then
-          printf 'Timed out waiting for localhost:%s\n' "$port" >&2
-          return 1
-        fi
-
-        /bin/sleep 1
-      done
-    }
-
     if [[ ! -f "${caddyAuthFile}" ]]; then
       printf 'Missing %s\n' "${caddyAuthFile}" >&2
       printf 'Create it with a single username:hashed-password entry.\n' >&2
@@ -221,10 +205,6 @@ let
     export XDG_DATA_HOME="$HOME/.local/share"
 
     mkdir -p "$XDG_CONFIG_HOME/caddy" "$XDG_DATA_HOME/caddy"
-
-    wait_for_port ${toString opencodeUpstreamPort}
-    wait_for_port ${toString openVSCodeServerPort}
-    wait_for_port ${toString codexWebUiPort}
 
     exec ${pkgs.caddy}/bin/caddy run --config "${caddyConfig}" --adapter caddyfile
   '';
