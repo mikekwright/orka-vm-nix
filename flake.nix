@@ -47,85 +47,94 @@
     }:
     let
       system = "aarch64-darwin";
-
-      localConfigPath = ./local.nix;
-      localConfig =
-        if builtins.pathExists localConfigPath then
-          import localConfigPath
-        else
-          throw "Copy local.nix.template to local.nix and set username and gitUserName.";
-
-      username = localConfig.username;
-      gitUserName = localConfig.gitUserName;
-      hostname = localConfig.hostname;
+      pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+      };
+      caddyPwdPackage = pkgs.callPackage ./pkgs/caddy-pwd { };
     in
     {
-      darwinConfigurations.${hostname} = darwin.lib.darwinSystem {
-        inherit system;
-        specialArgs = {
-          inherit
-            inputs
-            localConfig
-            hostname
-            username
-            gitUserName
-            ;
+      darwinConfigurations =
+        let
+          localConfigPath = ./local.nix;
+          localConfig =
+            if builtins.pathExists localConfigPath then
+              import localConfigPath
+            else
+              throw "Copy local.nix.template to local.nix and set username and gitUserName.";
+
+          username = localConfig.username;
+          gitUserName = localConfig.gitUserName;
+          hostname = localConfig.hostname;
+        in
+        {
+          ${hostname} = darwin.lib.darwinSystem {
+            inherit system;
+            specialArgs = {
+              inherit
+                inputs
+                localConfig
+                hostname
+                username
+                gitUserName
+                ;
+            };
+            modules = [
+              nix-homebrew.darwinModules.nix-homebrew
+              home-manager.darwinModules.home-manager
+              ./darwin-configuration.nix
+              (
+                { config, ... }:
+                {
+                  nix-homebrew = {
+                    enable = true;
+                    enableRosetta = true;
+                    user = username;
+                    taps = {
+                      "homebrew/homebrew-core" = inputs.homebrew-core;
+                      "homebrew/homebrew-cask" = inputs.homebrew-cask;
+                    };
+                    mutableTaps = false;
+                  };
+
+                  homebrew.taps = builtins.attrNames config.nix-homebrew.taps;
+
+                  home-manager = {
+                    useGlobalPkgs = true;
+                    useUserPackages = true;
+                    extraSpecialArgs = {
+                      inherit
+                        inputs
+                        localConfig
+                        hostname
+                        username
+                        gitUserName
+                        ;
+                    };
+                    users.${username} = import ./home.nix;
+                  };
+                }
+              )
+            ];
+          };
         };
-        modules = [
-          nix-homebrew.darwinModules.nix-homebrew
-          home-manager.darwinModules.home-manager
-          ./darwin-configuration.nix
-          (
-            { config, ... }:
-            {
-              nix-homebrew = {
-                enable = true;
-                enableRosetta = true;
-                user = username;
-                taps = {
-                  "homebrew/homebrew-core" = inputs.homebrew-core;
-                  "homebrew/homebrew-cask" = inputs.homebrew-cask;
-                };
-                mutableTaps = false;
-              };
 
-              homebrew.taps = builtins.attrNames config.nix-homebrew.taps;
+      formatter.${system} = pkgs.nixfmt;
 
-              home-manager = {
-                useGlobalPkgs = true;
-                useUserPackages = true;
-                extraSpecialArgs = {
-                  inherit
-                    inputs
-                    localConfig
-                    hostname
-                    username
-                    gitUserName
-                    ;
-                };
-                users.${username} = import ./home.nix;
-              };
-            }
-          )
-        ];
+      packages.${system}.caddy-pwd = caddyPwdPackage;
+
+      apps.${system}.caddy-pwd = {
+        type = "app";
+        program = "${caddyPwdPackage}/bin/caddy-pwd";
       };
 
-      formatter.${system} = nixpkgs.legacyPackages.${system}.nixfmt;
-
-      devShells.${system}.default =
-        let
-          pkgs = import nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-          };
-        in
-        pkgs.mkShell {
-          packages = with pkgs; [
-            darwin-rebuild
-            home-manager
-            nil
-            nixfmt
-          ];
-        };
+      devShells.${system}.default = pkgs.mkShell {
+        packages = with pkgs; [
+          darwin-rebuild
+          home-manager
+          nil
+          nixfmt
+        ];
+      };
     };
 }

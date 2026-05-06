@@ -30,6 +30,7 @@ let
   codexWebUiPublicUrl = "http://${serviceHostName}:${toString codexWebUiPublicPort}";
 
   openVSCodeServerPackage = pkgs.openvscode-server;
+  caddyPwdPackage = pkgs.callPackage ./pkgs/caddy-pwd { inherit caddyAuthFile; };
   codexWebUiPackage = pkgs.callPackage ./pkgs/codex-web-ui { };
 
   openVSCodeServerRootDirectory = "${homeDirectory}/.local/share/openvscode-server";
@@ -179,8 +180,7 @@ let
 
     if [[ ! -f "${caddyAuthFile}" ]]; then
       printf 'Missing %s\n' "${caddyAuthFile}" >&2
-      printf 'Create it with a single username:hashed-password entry.\n' >&2
-      printf 'Example hash command: caddy hash-password --plaintext "your-password"\n' >&2
+      printf 'Create it with caddy-pwd or with a single username:hashed-password entry.\n' >&2
       exit 1
     fi
 
@@ -212,6 +212,7 @@ in
 {
   home.packages = [
     openVSCodeServerPackage
+    caddyPwdPackage
     codexWebUiPackage
     pkgs.caddy
     pkgs.nodejs
@@ -273,9 +274,13 @@ in
   };
 
   home.file.".config/caddy/README.md".text = ''
-    Create ~/.caddy-basicauth with one username:hashed-password entry.
+    Create ~/.caddy-basicauth with:
 
-    Generate a password hash with:
+      caddy-pwd
+
+    This writes admin:<bcrypt-hash> with restrictive permissions.
+
+    Manual alternative:
       caddy hash-password --plaintext "your-password"
 
     Example file contents:

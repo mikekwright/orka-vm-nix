@@ -28,10 +28,11 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     mkdir -p "$out/bin" "$out/share/codex-web-ui"
     cp -R package/* "$out/share/codex-web-ui/"
+    cp ${./launch_codex_webui_unpacked.sh} "$out/share/codex-web-ui/launch_codex_webui_unpacked.sh"
     patchShebangs "$out/share/codex-web-ui"
 
     makeWrapper "${bash}/bin/bash" "$out/bin/codex-web-ui" \
-      --add-flags "$out/share/codex-web-ui/bin/codex-web-ui"
+      --add-flags "$out/share/codex-web-ui/launch_codex_webui_unpacked.sh"
 
     runHook postInstall
   '';

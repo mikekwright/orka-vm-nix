@@ -87,6 +87,28 @@ nix --enable-experimental-features nix-command --enable-experimental-features fl
 
 Create `~/.caddy-basicauth` with a single `username:bcrypt-hash` entry before expecting the proxied web apps to work.
 
+Before switching this configuration, you can create it directly from the flake:
+
+```bash
+nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#caddy-pwd
+```
+
+After switching, the helper is available on your PATH:
+
+```bash
+caddy-pwd
+```
+
+`caddy-pwd` prompts for a password, defaults the username to `admin`, and writes `~/.caddy-basicauth` with mode `600`.
+
+For automation, you can pass the password on stdin:
+
+```bash
+printf '%s' 'your-password' | caddy-pwd --stdin --force
+```
+
+Manual alternative:
+
 ```bash
 nix shell nixpkgs#caddy -c caddy hash-password --plaintext 'your-password'
 ```
@@ -112,6 +134,8 @@ Rules for `~/.caddy-basicauth`:
 - the hash should be the output of `caddy hash-password`
 
 If this file is missing or malformed, the Caddy launch agent will fail to start until it is fixed.
+
+If you want to recreate it cleanly, run `caddy-pwd --force`.
 
 ## Service URLs
 
