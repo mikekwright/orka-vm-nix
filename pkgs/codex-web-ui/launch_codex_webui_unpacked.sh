@@ -194,6 +194,75 @@ has_pattern() {
   fi
 }
 
+resolve_main_bundle_path() {
+  local vite_dir="$APP_DIR/.vite/build"
+  local bootstrap_main="$vite_dir/main.js"
+  local package_main_rel=""
+  local discovered_rel=""
+  local discovered_path=""
+
+  if [[ -f "$APP_DIR/package.json" ]]; then
+    package_main_rel="$(node -e 'const fs=require("node:fs"); const pkg=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (typeof pkg.main === "string") process.stdout.write(pkg.main);' "$APP_DIR/package.json" 2>/dev/null || true)"
+    if [[ -n "$package_main_rel" && -f "$APP_DIR/$package_main_rel" ]]; then
+      bootstrap_main="$APP_DIR/$package_main_rel"
+      vite_dir="$(dirname "$bootstrap_main")"
+    fi
+  fi
+
+  if [[ -f "$bootstrap_main" ]]; then
+    discovered_rel="$(sed -nE 's@.*(main-[A-Za-z0-9_-]+\.js).*@\1@p' "$bootstrap_main" | head -n1 || true)"
+    if [[ -n "$discovered_rel" && -f "$vite_dir/$discovered_rel" ]]; then
+      printf '%s\n' "$vite_dir/$discovered_rel"
+      return 0
+    fi
+
+    printf '%s\n' "$bootstrap_main"
+    return 0
+  fi
+
+  discovered_path="$(find "$APP_DIR" -type f -path '*/.vite/build/main-*.js' -print -quit 2>/dev/null || true)"
+  if [[ -n "$discovered_path" ]]; then
+    printf '%s\n' "$discovered_path"
+    return 0
+  fi
+
+  discovered_path="$(find "$APP_DIR" -type f -path '*/.vite/build/main.js' -print -quit 2>/dev/null || true)"
+  if [[ -n "$discovered_path" ]]; then
+    printf '%s\n' "$discovered_path"
+    return 0
+  fi
+
+  discovered_path="$(find "$APP_DIR" -type f -name 'main-*.js' ! -path '*/webview/*' ! -path '*/node_modules/*' -print -quit 2>/dev/null || true)"
+  if [[ -n "$discovered_path" ]]; then
+    printf '%s\n' "$discovered_path"
+    return 0
+  fi
+
+  return 1
+}
+
+resolve_renderer_bundle_path() {
+  local webview_index="$APP_DIR/webview/index.html"
+  local discovered_rel=""
+  local discovered_path=""
+
+  if [[ -f "$webview_index" ]]; then
+    discovered_rel="$(sed -nE 's@.*assets/(index-[A-Za-z0-9_-]+\.js).*@\1@p' "$webview_index" | head -n1 || true)"
+    if [[ -n "$discovered_rel" && -f "$APP_DIR/webview/assets/$discovered_rel" ]]; then
+      printf '%s\n' "$APP_DIR/webview/assets/$discovered_rel"
+      return 0
+    fi
+  fi
+
+  discovered_path="$(find "$APP_DIR" -type f -path '*/webview/assets/index-*.js' -print -quit 2>/dev/null || true)"
+  if [[ -n "$discovered_path" ]]; then
+    printf '%s\n' "$discovered_path"
+    return 0
+  fi
+
+  return 1
+}
+
 write_main_injection_chunk() {
   local dest="$1"
   cat > "$dest" <<'JS'
@@ -1240,24 +1309,24 @@ trap cleanup EXIT
 echo "Extracting app.asar to: $APP_DIR"
 npx -y @electron/asar extract "$APP_ASAR" "$APP_DIR"
 
-target_main_js_rel="$(sed -nE 's@.*(main-[A-Za-z0-9_-]+\.js).*@\1@p' "$APP_DIR/.vite/build/main.js" | head -n1 || true)"
-if [[ -z "$target_main_js_rel" && -f "$APP_DIR/.vite/build/main.js" ]]; then
-  target_main_js_rel="main.js"
-fi
-target_renderer_js_rel="$(sed -nE 's@.*assets/(index-[A-Za-z0-9_-]+\.js).*@\1@p' "$APP_DIR/webview/index.html" | head -n1 || true)"
-[[ -n "$target_main_js_rel" && -n "$target_renderer_js_rel" ]] || {
+target_main_js_path="$(resolve_main_bundle_path || true)"
+target_renderer_js_path="$(resolve_renderer_bundle_path || true)"
+[[ -n "$target_main_js_path" && -n "$target_renderer_js_path" ]] || {
   echo "Failed resolving target bundle names" >&2
   exit 1
 }
 
+echo "Resolved main bundle: $target_main_js_path"
+echo "Resolved renderer bundle: $target_renderer_js_path"
+
 MAIN_CHUNK_FILE="$WORKDIR/main-webui.chunk.js"
 write_main_injection_chunk "$MAIN_CHUNK_FILE"
-apply_main_chunk "$APP_DIR/.vite/build/$target_main_js_rel" "$MAIN_CHUNK_FILE"
-patch_renderer_bundle "$APP_DIR/webview/assets/$target_renderer_js_rel"
+apply_main_chunk "$target_main_js_path" "$MAIN_CHUNK_FILE"
+patch_renderer_bundle "$target_renderer_js_path"
 
 cp "$BRIDGE_PATH" "$APP_DIR/webview/webui-bridge.js"
 
-has_pattern '__CODEX_WEBUI_RUNTIME_PATCH__' "$APP_DIR/.vite/build/$target_main_js_rel" || {
+has_pattern '__CODEX_WEBUI_RUNTIME_PATCH__' "$target_main_js_path" || {
   echo "Patched main missing runtime marker" >&2
   exit 1
 }
