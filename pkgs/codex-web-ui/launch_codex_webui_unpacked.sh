@@ -4,12 +4,15 @@ set -euo pipefail
 APP_PATH="/Applications/Codex.app"
 APP_ASAR="$APP_PATH/Contents/Resources/app.asar"
 CLI_PATH="$APP_PATH/Contents/Resources/codex"
+APP_INFO_PLIST="$APP_PATH/Contents/Info.plist"
 PORT="${CODEX_WEBUI_PORT:-5999}"
 TOKEN=""
 ORIGINS=""
 KEEP_TEMP=0
 NO_OPEN=0
 USER_DATA_DIR=""
+APP_EXECUTABLE=""
+ELECTRON_VERSION=""
 BRIDGE_PATH="$(cd "$(dirname "$0")" && pwd)/webui-bridge.js"
 AUTO_INSTALL_TOOLS="${AUTO_INSTALL_TOOLS:-1}"
 
@@ -192,6 +195,42 @@ has_pattern() {
   else
     grep -Eq -- "$pattern" "$file"
   fi
+}
+
+resolve_app_executable() {
+  local executable_name=""
+
+  if [[ -f "$APP_INFO_PLIST" ]]; then
+    executable_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_INFO_PLIST" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$executable_name" ]]; then
+    executable_name="$(basename "$APP_PATH" .app)"
+  fi
+
+  printf '%s\n' "$APP_PATH/Contents/MacOS/$executable_name"
+}
+
+resolve_bundled_electron_version() {
+  local app_executable="$1"
+  local framework_plist="$APP_PATH/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources/Info.plist"
+  local version=""
+
+  version="$(ELECTRON_RUN_AS_NODE=1 "$app_executable" -p 'process.versions.electron || ""' 2>/dev/null || true)"
+  if [[ -n "$version" ]]; then
+    printf '%s\n' "$version"
+    return 0
+  fi
+
+  if [[ -f "$framework_plist" ]]; then
+    version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$framework_plist" 2>/dev/null || true)"
+    if [[ -n "$version" ]]; then
+      printf '%s\n' "$version"
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 resolve_main_bundle_path() {
@@ -1253,7 +1292,7 @@ EXTRA_ARGS=()
 while (($#)); do
   case "$1" in
     --app)
-      APP_PATH="${2:?missing value}"; APP_ASAR="$APP_PATH/Contents/Resources/app.asar"; CLI_PATH="$APP_PATH/Contents/Resources/codex"; shift 2 ;;
+      APP_PATH="${2:?missing value}"; APP_ASAR="$APP_PATH/Contents/Resources/app.asar"; CLI_PATH="$APP_PATH/Contents/Resources/codex"; APP_INFO_PLIST="$APP_PATH/Contents/Info.plist"; shift 2 ;;
     --port)
       PORT="${2:?missing value}"; shift 2 ;;
     --token)
@@ -1285,11 +1324,22 @@ done
   echo "Missing codex binary: $CLI_PATH" >&2
   exit 1
 }
+APP_EXECUTABLE="$(resolve_app_executable)"
+[[ -x "$APP_EXECUTABLE" ]] || {
+  echo "Missing app executable: $APP_EXECUTABLE" >&2
+  exit 1
+}
 [[ -f "$BRIDGE_PATH" ]] || {
   echo "Missing standalone bridge file: $BRIDGE_PATH" >&2
   exit 1
 }
 ensure_required_tools
+
+ELECTRON_VERSION="$(resolve_bundled_electron_version "$APP_EXECUTABLE" || true)"
+[[ -n "$ELECTRON_VERSION" ]] || {
+  echo "Failed to determine bundled Electron version from $APP_EXECUTABLE" >&2
+  exit 1
+}
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/codex-webui-unpacked.XXXXXX")"
 APP_DIR="$WORKDIR/app"
@@ -1335,7 +1385,7 @@ has_pattern 'sendMessageFromView' "$APP_DIR/webview/webui-bridge.js" || {
   exit 1
 }
 
-CMD=(npx -y electron "--user-data-dir=$USER_DATA_DIR" "$APP_DIR" --webui --port "$PORT")
+CMD=(npx -y "electron@$ELECTRON_VERSION" "--user-data-dir=$USER_DATA_DIR" "$APP_DIR" --webui --port "$PORT")
 if [[ -n "$TOKEN" ]]; then
   CMD+=(--token "$TOKEN")
 fi
@@ -1355,6 +1405,7 @@ export CUSTOM_CLI_PATH="$CLI_PATH"
 
 echo "App dir: $APP_DIR"
 echo "User data dir: $USER_DATA_DIR"
+echo "Using Electron version: $ELECTRON_VERSION"
 printf 'Command:'
 printf ' %q' "${CMD[@]}"
 echo
