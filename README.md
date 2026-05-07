@@ -75,6 +75,7 @@ nix --enable-experimental-features nix-command --enable-experimental-features fl
 - The `codex` CLI is installed from Nix for direct terminal use and should be available on your shell `PATH` after switching.
 - OpenCode now listens on `127.0.0.1:9081` and is intended to be reached through the local Caddy reverse proxy.
 - `codex-web-ui` is started locally and still expects `Codex.app` to exist at `/Applications/Codex.app`, which is currently provided by the `codex-app` Homebrew cask; it does not replace that dependency with the Nix CLI.
+- The packaged `codex-web-ui` wrapper verifies that the upstream npm bundle still includes `webui-bridge.js` and binds its internal listener to loopback by default so it stays behind Caddy.
 - The web access stack uses these public ports on the VM:
   - `8080` - Caddy landing page
   - `8081` - OpenCode
@@ -261,6 +262,7 @@ username:$2a$14$...
 - `codex` available from the managed Nix environment
 - `Codex.app` installed at `/Applications/Codex.app`
 - Node available from the managed environment
+- the upstream `webui-bridge.js` runtime asset present in the packaged wrapper output
 
 If the app is missing, make sure the `codex-app` cask installed successfully.
 

@@ -118,25 +118,7 @@ let
   codexWebUiStart = pkgs.writeShellScript "codex-web-ui-start" ''
     set -euo pipefail
 
-    export AUTO_INSTALL_TOOLS=0
-    export PATH="${
-      lib.makeBinPath [
-        pkgs.bash
-        pkgs.coreutils
-        pkgs.curl
-        pkgs.findutils
-        pkgs.gnugrep
-        pkgs.gnutar
-        pkgs.gzip
-        pkgs.nodejs
-        pkgs.ripgrep
-        pkgs.unzip
-      ]
-    }:/usr/bin:/bin:/usr/sbin:/sbin"
-
-    exec ${codexWebUiPackage}/bin/codex-web-ui \
-      --port ${toString codexWebUiPort} \
-      --no-open
+    exec ${codexWebUiPackage}/bin/codexui --no-password --no-login --no-open --no-tunnel --port ${toString codexWebUiPort}
   '';
 
   caddyConfig = pkgs.writeText "orka-vm-caddy.Caddyfile" ''
@@ -218,6 +200,7 @@ in
     pkgs.nodejs
     pkgs.ripgrep
     pkgs.unzip
+    pkgs.codex
   ];
 
   home.sessionVariables = {
