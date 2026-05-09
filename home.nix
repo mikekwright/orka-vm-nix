@@ -1,15 +1,41 @@
 {
+  config,
+  lib,
   pkgs,
+  hostname,
   username,
   gitUserName,
+  localConfig ? { },
   ...
 }:
 
+let
+  normalizedHostname = lib.toLower (lib.replaceStrings [ " " "_" ] [ "-" "-" ] hostname);
+  serviceHostName =
+    if localConfig ? serviceHostName && localConfig.serviceHostName != "" then
+      localConfig.serviceHostName
+    else
+      "${normalizedHostname}.local";
+in
 {
   imports = [
     ./opencode.nix
     ./web-stack.nix
   ];
+
+  services.orkaVm = {
+    opencode = {
+      enable = true;
+      enableDirectAuth =
+        localConfig ? enableDirectOpencodeAuth && localConfig.enableDirectOpencodeAuth;
+    };
+
+    web = {
+      enable = true;
+      serviceHostName = serviceHostName;
+      opencodeUpstreamPort = lib.mkDefault config.services.orkaVm.opencode.port;
+    };
+  };
 
   home = {
     username = username;

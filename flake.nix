@@ -1,5 +1,5 @@
 {
-  description = "Standalone nix-darwin flake for admins-Virtual-Machine";
+  description = "nix-darwin flake and reusable Home Manager modules for orka-vm web tooling";
 
   inputs = {
     # Pinned versions for nixpkgs-unstable 2026-04-16
@@ -46,22 +46,73 @@
       ...
     }:
     let
-      system = "aarch64-darwin";
-      pkgs = import nixpkgs {
+      supportedSystems = [
+        "aarch64-darwin"
+        "x86_64-darwin"
+      ];
+
+      forEachSystem = nixpkgs.lib.genAttrs supportedSystems;
+
+      mkPkgs = system: import nixpkgs {
         inherit system;
         config.allowUnfree = true;
       };
-      caddyPwdPackage = pkgs.callPackage ./pkgs/caddy-pwd { };
+
+      mkOpencodePkgs = system: import inputs.nixpkgs-opencode {
+        inherit system;
+        config.allowUnfree = true;
+      };
+
+      mkPackages =
+        system:
+        let
+          pkgs = mkPkgs system;
+        in
+        {
+          caddy-pwd = pkgs.callPackage ./pkgs/caddy-pwd { };
+          codex-web-ui = pkgs.callPackage ./pkgs/codex-web-ui { };
+          computer-control-mcp = pkgs.callPackage ./pkgs/computer-control-mcp { };
+          opencode = (mkOpencodePkgs system).opencode;
+        };
+
+      homeManagerOpencodeModule =
+        { pkgs, ... }@args:
+        import ./opencode.nix (
+          args
+          // {
+            opencodePackage = self.packages.${pkgs.stdenv.hostPlatform.system}.opencode;
+          }
+        );
+
+      homeManagerWebStackModule = import ./web-stack.nix;
+
+      homeManagerDefaultModule =
+        { config, lib, ... }:
+        {
+          imports = [
+            homeManagerOpencodeModule
+            homeManagerWebStackModule
+          ];
+
+          services.orkaVm.web.opencodeUpstreamPort = lib.mkDefault config.services.orkaVm.opencode.port;
+        };
+
+      defaultSystem = "aarch64-darwin";
+      localConfigPath = ./local.nix;
+      hasLocalConfig = builtins.pathExists localConfigPath;
     in
     {
+      homeManagerModules = {
+        default = homeManagerDefaultModule;
+        opencode = homeManagerOpencodeModule;
+        web-stack = homeManagerWebStackModule;
+      };
+
       darwinConfigurations =
+        if hasLocalConfig then
         let
-          localConfigPath = ./local.nix;
-          localConfig =
-            if builtins.pathExists localConfigPath then
-              import localConfigPath
-            else
-              throw "Copy local.nix.template to local.nix and set username and gitUserName.";
+          system = defaultSystem;
+          localConfig = import localConfigPath;
 
           username = localConfig.username;
           gitUserName = localConfig.gitUserName;
@@ -78,6 +129,7 @@
                 username
                 gitUserName
                 ;
+              opencodePackage = self.packages.${system}.opencode;
             };
             modules = [
               nix-homebrew.darwinModules.nix-homebrew
@@ -110,6 +162,7 @@
                         username
                         gitUserName
                         ;
+                      opencodePackage = self.packages.${system}.opencode;
                     };
                     users.${username} = import ./home.nix;
                   };
@@ -117,24 +170,43 @@
               )
             ];
           };
-        };
+        }
+        else
+          { };
 
-      formatter.${system} = pkgs.nixfmt;
+      formatter = forEachSystem (system: (mkPkgs system).nixfmt);
 
-      packages.${system}.caddy-pwd = caddyPwdPackage;
+      packages = forEachSystem mkPackages;
 
-      apps.${system}.caddy-pwd = {
-        type = "app";
-        program = "${caddyPwdPackage}/bin/caddy-pwd";
-      };
+      apps = forEachSystem (
+        system:
+        let
+          packages = mkPackages system;
+        in
+        {
+          caddy-pwd = {
+            type = "app";
+            program = "${packages.caddy-pwd}/bin/caddy-pwd";
+            meta.description = "Create or replace the Caddy basic-auth file";
+          };
+        }
+      );
 
-      devShells.${system}.default = pkgs.mkShell {
-        packages = with pkgs; [
-          darwin-rebuild
-          home-manager
-          nil
-          nixfmt
-        ];
-      };
+      devShells = forEachSystem (
+        system:
+        let
+          pkgs = mkPkgs system;
+        in
+        {
+          default = pkgs.mkShell {
+            packages = [
+              darwin.packages.${system}.default
+              pkgs.home-manager
+              pkgs.nil
+              pkgs.nixfmt
+            ];
+          };
+        }
+      );
     };
 }

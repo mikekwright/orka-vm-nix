@@ -6,7 +6,7 @@ A VM for OpenCode for you mac system (create a droid)
 
 Standalone public-safe flake for the `admins-Virtual-Machine` macOS VM.
 
-This repo is intentionally scoped to a single machine instead of a shared multi-host dotfiles setup.
+This repo still supports its single-machine `nix-darwin` workflow, and it now also exposes reusable Home Manager modules and package outputs that another flake can consume.
 
 ### What is included
 
@@ -22,6 +22,7 @@ This repo is intentionally scoped to a single machine instead of a shared multi-
 - Local OpenCode MCP server packaging, starting with `computer-control`
 - Local machine identity loaded from an ignored `local.nix` file
 - Launch agents that start OpenCode, `openvscode-server`, `codex-web-ui`, and Caddy automatically at user login
+- Reusable flake outputs for downstream Home Manager consumers
 
 ### What is intentionally not included
 
@@ -43,6 +44,8 @@ First copy the template and fill in your local values:
 ```bash
 cp local.nix.template local.nix
 ```
+
+`local.nix` is only required when evaluating this repo's own `darwinConfigurations.<hostname>` output. Downstream flakes that only consume the exported Home Manager modules or packages do not need it.
 
 Set `serviceHostName` to the hostname or IP you want used in the generated helper URLs.
 
@@ -67,6 +70,67 @@ nix --enable-experimental-features nix-command --enable-experimental-features fl
 ```bash
 nix --enable-experimental-features nix-command --enable-experimental-features flakes run nix-darwin -- switch --flake .#admins-Virtual-Machine
 ```
+
+## Consume from another flake
+
+This flake exports reusable Home Manager modules:
+
+- `homeManagerModules.default`
+- `homeManagerModules.opencode`
+- `homeManagerModules.web-stack`
+
+It also exports packages for supported Darwin systems:
+
+- `packages.<system>.opencode`
+- `packages.<system>.codex-web-ui`
+- `packages.<system>.computer-control-mcp`
+- `packages.<system>.caddy-pwd`
+
+Example downstream usage:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    darwin.url = "github:lnl7/nix-darwin";
+    home-manager.url = "github:nix-community/home-manager";
+    orka-vm-nix.url = "github:your-org/orka-vm-nix";
+  };
+
+  outputs = { darwin, home-manager, nixpkgs, orka-vm-nix, ... }: {
+    darwinConfigurations.dev-vm = darwin.lib.darwinSystem {
+      system = "aarch64-darwin";
+      modules = [
+        home-manager.darwinModules.home-manager
+        {
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+
+          home-manager.users.alice = { ... }: {
+            imports = [ orka-vm-nix.homeManagerModules.default ];
+
+            home.username = "alice";
+            home.homeDirectory = "/Users/alice";
+            home.stateVersion = "25.11";
+
+            services.orkaVm.opencode = {
+              enable = true;
+              enableDirectAuth = false;
+            };
+
+            services.orkaVm.web = {
+              enable = true;
+              serviceHostName = "dev-vm.local";
+            };
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+`homeManagerModules.default` keeps the OpenCode upstream and Caddy proxy aligned by default. If you import `opencode` and `web-stack` separately, set `services.orkaVm.web.opencodeUpstreamPort` to match `services.orkaVm.opencode.port`.
 
 ## Notes
 
